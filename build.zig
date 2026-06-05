@@ -29,7 +29,7 @@ pub const Options = struct {
 
 // Zig 0.16.0 vs 0.17.0 compatibility helper
 fn addRunFile(b: *Build, p: Build.LazyPath) *Build.Step.Run {
-    if (builtin.zig_version.major <= 16) {
+    if (builtin.zig_version.minor <= 16) {
         return b.addSystemCommand(&.{p.getPath(b)});
     } else {
         return b.addRunFile(p);
