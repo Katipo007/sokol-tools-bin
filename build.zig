@@ -27,10 +27,20 @@ pub const Options = struct {
     no_log_cmdline: bool = true,
 };
 
+// Zig 0.16.0 vs 0.17.0 compatibility helper
+fn addRunFile(b: *Build, p: Build.LazyPath) *Build.Step.Run {
+    if (builtin.zig_version.minor <= 16) {
+        return b.addSystemCommand(&.{p.getPath(b)});
+    } else {
+        return b.addRunFile(p);
+    }
+}
+
 pub fn compile(b: *Build, opts: Options) !Build.LazyPath {
     const shdc_lazy_path = try getShdcLazyPath(b, opts.shdc_dep, opts.shdc_dir);
-    const args = try optsToArgs(b, opts, shdc_lazy_path);
-    const run = b.addSystemCommand(args);
+    const run = addRunFile(b, shdc_lazy_path);
+    try addOptionsAsArgs(b, run, opts);
+
     run.addArgs(&.{"--input"});
     run.addFileArg(b.path(opts.input));
     run.addArgs(&.{"--output"});
@@ -75,9 +85,9 @@ pub const Slang = packed struct(u11) {
 fn slangToString(slang: Slang, a: Allocator) ![]const u8 {
     var strings: [16][]const u8 = undefined;
     var num_strings: usize = 0;
-    inline for (std.meta.fields(Slang)) |field| {
-        if (@field(slang, field.name)) {
-            strings[num_strings] = field.name;
+    inline for (comptime std.meta.fieldNames(Slang)) |fieldName| {
+        if (@field(slang, fieldName)) {
+            strings[num_strings] = fieldName;
             num_strings += 1;
         }
     }
@@ -132,46 +142,44 @@ fn getShdcLazyPath(
     return error.ShdcMissingPath;
 }
 
-fn optsToArgs(b: *Build, opts: Options, tool_path: Build.LazyPath) ![]const []const u8 {
+fn addOptionsAsArgs(b: *Build, step: *Build.Step.Run, opts: Options) !void {
     const a = b.allocator;
-    var arr: std.ArrayListUnmanaged([]const u8) = .empty;
-    try arr.append(a, tool_path.getPath(b));
-    try arr.appendSlice(a, &.{ "-l", try slangToString(opts.slang, a) });
-    try arr.appendSlice(a, &.{ "-f", formatToString(opts.format) });
+    step.addArgs(&.{ "-l", try slangToString(opts.slang, a) });
+    step.addArgs(&.{ "-f", formatToString(opts.format) });
     if (opts.tmp_dir) |tmp_dir| {
-        try arr.appendSlice(a, &.{ "--tmpdir", tmp_dir.getPath(b) });
+        step.addArg("--tmpdir");
+        step.addDirectoryArg(tmp_dir);
     }
     if (opts.defines) |defines| {
-        try arr.appendSlice(a, &.{ "--defines", try std.mem.join(a, ":", defines) });
+        step.addArgs(&.{ "--defines", try std.mem.join(a, ":", defines) });
     }
     if (opts.module) |module| {
-        try arr.appendSlice(a, &.{ "--module", b.dupe(module) });
+        step.addArgs(&.{ "--module", b.dupe(module) });
     }
     if (opts.reflection) {
-        try arr.append(a, "--reflection");
+        step.addArg("--reflection");
     }
     if (opts.bytecode) {
-        try arr.append(a, "--bytecode");
+        step.addArg("--bytecode");
     }
     if (opts.dump) {
-        try arr.append(a, "--dump");
+        step.addArg("--dump");
     }
     if (opts.genver) |genver| {
-        try arr.appendSlice(a, &.{ "--genver", b.dupe(genver) });
+        step.addArgs(&.{ "--genver", b.dupe(genver) });
     }
     if (opts.ifdef) {
-        try arr.append(a, "--ifdef");
+        step.addArg("--ifdef");
     }
     if (opts.noifdef) {
-        try arr.append(a, "--noifdef");
+        step.addArg("--noifdef");
     }
     if (opts.save_intermediate_spirv) {
-        try arr.append(a, "--save-intermediate-spirv");
+        step.addArg("--save-intermediate-spirv");
     }
     if (opts.no_log_cmdline) {
-        try arr.append(a, "--no-log-cmdline");
+        step.addArg("--no-log-cmdline");
     }
-    return arr.toOwnedSlice(a);
 }
 
 pub fn build(b: *Build) !void {
