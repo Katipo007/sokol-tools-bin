@@ -27,9 +27,18 @@ pub const Options = struct {
     no_log_cmdline: bool = true,
 };
 
+// Zig 0.16.0 vs 0.17.0 compatibility helper
+fn addRunFile(b: *Build, p: Build.LazyPath) *Build.Step.Run {
+    if (builtin.zig_version.major <= 16) {
+        return b.addSystemCommand(&.{p.getPath(b)});
+    } else {
+        return b.addRunFile(p);
+    }
+}
+
 pub fn compile(b: *Build, opts: Options) !Build.LazyPath {
     const shdc_lazy_path = try getShdcLazyPath(b, opts.shdc_dep, opts.shdc_dir);
-    const run = b.addRunFile(shdc_lazy_path);
+    const run = addRunFile(b, shdc_lazy_path);
     try addOptionsAsArgs(b, run, opts);
 
     run.addArgs(&.{"--input"});
