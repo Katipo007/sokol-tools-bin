@@ -41,9 +41,9 @@ pub fn compile(b: *Build, opts: Options) !Build.LazyPath {
     const run = addRunFile(b, shdc_lazy_path);
     try addOptionsAsArgs(b, run, opts);
 
-    run.addArgs(&.{"--input"});
+    run.addArg("--input");
     run.addFileArg(b.path(opts.input));
-    run.addArgs(&.{"--output"});
+    run.addArg("--output");
     return run.addOutputFileArg(opts.output);
 }
 
